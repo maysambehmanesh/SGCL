@@ -11,7 +11,40 @@ Graph contrastive learning (GCL) aligns node representations by classifying node
 ![image](https://github.com/user-attachments/assets/7c6f59c4-7861-4ce1-8dc4-9942978bd5f7)
 
 
-The codebase will be uploaded soon...
+## Requirements
+- Python 3.8+
+- PyTorch = 2.1.2
+- PyTorch-Geometric = 2.5
+- PyGCL
+
+
+
+You can install PyGCL directly from PyPI using pip:
+
+```bash
+pip install PyGCL
+```
+
+## Citation
+
+
+```
+@InProceedings{pmlr-v269-behmanesh24a,
+  title = 	 {Smoothed Graph Contrastive Learning via Seamless Proximity Integration},
+  author =       {Behmanesh, Maysam and Ovsjanikov, Maks},
+  booktitle = 	 {Proceedings of the Third Learning on Graphs Conference},
+  pages = 	 {to appear},
+  year = 	 {2024},
+  volume = 	 {269},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {26--29 Nov},
+  publisher =    {PMLR},
+
+}
+```
+
+## Reference
+Zhu et al. [An Empirical Study of Graph Contrastive Learning](https://arxiv.org/abs/2109.01116). 
 
 
 

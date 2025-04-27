@@ -44,10 +44,5 @@ pip install PyGCL
 ```
 
 ## Reference
-Zhu et al. [An Empirical Study of Graph Contrastive Learning](https://arxiv.org/abs/2109.01116). 
-
-
-
-
-
-
+- Zhu et al. [An Empirical Study of Graph Contrastive Learning](https://arxiv.org/abs/2109.01116). 
+- Zeng et al. [GraphSAINT: Graph Sampling Based Inductive Learning Method](https://arxiv.org/pdf/1907.04931 )

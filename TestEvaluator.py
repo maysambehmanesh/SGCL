@@ -1,0 +1,108 @@
+import torch
+from tqdm import tqdm
+from torch import nn
+from torch.optim import Adam
+from sklearn.metrics import f1_score,accuracy_score, roc_auc_score
+from torch.nn import Linear
+from GCL.eval import BaseEvaluator
+
+
+class LogisticRegression(nn.Module):
+    def __init__(self, train_encoder, target_features, source_features, hidden_features, num_classes):
+        super(LogisticRegression, self).__init__()
+        self.train_encoder = train_encoder
+        self.fc_in = nn.Linear(target_features, source_features)
+        self.fc_out = nn.Linear(hidden_features, num_classes)
+        torch.nn.init.xavier_uniform_(self.fc_in.weight.data)
+        torch.nn.init.xavier_uniform_(self.fc_out.weight.data)
+
+    def forward(self, x, edge_index):
+        z = self.fc_in(x)
+        z = self.train_encoder.evaluate(z, edge_index)
+        z = self.fc_out(z)
+        return z
+
+
+class LREvaluator_transfer(BaseEvaluator):
+    def __init__(self, train_encoder, in_features_trg, in_features_src, hidden_features, num_epochs: int = 5000, learning_rate: float = 0.01,
+                 weight_decay: float = 0.0, test_interval: int = 20):
+        self.num_epochs = num_epochs
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.test_interval = test_interval
+        self.train_encoder = train_encoder
+        self.hidden_features = hidden_features
+        self.in_features_trg = in_features_trg
+        self.in_features_src = in_features_src
+
+
+    def evaluate(self, x: torch.FloatTensor, edge_index:torch.FloatTensor, y: torch.LongTensor, split: dict):
+        device = x.device
+        x = x.detach().to(device)
+        y = y.to(device)
+        num_classes = y.max().item() + 1
+        
+        classifier = LogisticRegression(self.train_encoder, self.in_features_trg, self.in_features_src, self.hidden_features, num_classes).to(device)
+        
+        for name, parm in classifier.named_parameters():
+            if name not in ['fc_in.weight', 'fc_in.bias', 'fc_out.weight', 'fc_out.bias']:
+                parm.requires_grad = False
+                
+                
+        optimizer = Adam(classifier.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        output_fn = nn.LogSoftmax(dim=-1)
+        criterion = nn.NLLLoss()
+
+        best_val_micro = 0
+        best_test_micro = 0
+        best_test_macro = 0
+        best_test_accuracy = 0
+        best_test_rocauc = 0
+        best_epoch = 0
+        
+        
+        with tqdm(total=self.num_epochs, desc='(LR)',
+                  bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}{postfix}]') as pbar:
+            for epoch in range(self.num_epochs):
+                classifier.train()
+                optimizer.zero_grad()
+
+                output = classifier(x, edge_index)
+
+                loss = criterion(output_fn(output[split['train']]), y[split['train']])
+
+                loss.backward()
+                optimizer.step()
+
+                if (epoch + 1) % self.test_interval == 0:
+                    classifier.eval()
+                    y_test = y[split['test']].detach().cpu().numpy()
+                    y_pred = classifier(x, edge_index).argmax(-1).detach().cpu().numpy()
+                    test_micro = f1_score(y_test, y_pred[split['test']], average='micro')
+                    test_macro = f1_score(y_test, y_pred[split['test']], average='macro')
+                    test_accuracy = accuracy_score(y_test, y_pred[split['test']])
+                    try:
+                        test_rocauc = roc_auc_score(y_test, torch.nn.functional.one_hot(torch.tensor(y_pred[split['test']]), num_classes=num_classes), multi_class='ovr')
+                    except:
+                        test_rocauc = 0
+                        
+                    y_val = y[split['valid']].detach().cpu().numpy()
+                    val_micro = f1_score(y_val, y_pred[split['valid']], average='micro')
+
+                    if val_micro > best_val_micro:
+                        best_val_micro = val_micro
+                        best_test_micro = test_micro
+                        best_test_macro = test_macro
+                        best_test_accuracy = test_accuracy
+                        best_test_rocauc = test_rocauc
+                        best_epoch = epoch
+
+                    pbar.set_postfix({'best test F1Mi': best_test_micro, 'F1Ma': best_test_macro, 'ROC-AUC': best_test_rocauc, 'Acc': best_test_accuracy})
+                    pbar.update(self.test_interval)
+
+        return {
+            'micro_f1': best_test_micro,
+            'macro_f1': best_test_macro,
+            'ROC-AUC': best_test_rocauc,
+            'accuracy': best_test_accuracy
+        }
